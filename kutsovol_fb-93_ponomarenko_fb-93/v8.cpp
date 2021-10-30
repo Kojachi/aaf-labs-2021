@@ -6,6 +6,7 @@
 #include <list>
 #include <cctype>
 #include <regex>
+#include <map>
 
 using namespace std;
 
@@ -67,6 +68,9 @@ string token_types_array[] = {
 };
 int token_types_size = sizeof(token_types_array) / sizeof(token_types_array[0]);
 int pos;
+multimap<string, int> mapOfWords;
+vector<multimap<string, int>> vectorOfMaps;
+vector<string> nameOfMaps;
 
 void Token::init_token(Tokens type_, string value_, int pos_) {
 	type = type_;
@@ -217,10 +221,74 @@ bool Token::lexer_get_next_token(Lexer& lexer) {
 	return false;
 }
 
+struct InvertedIndex {
+	string name;
+	vector<string> word;
+	vector<int> word_index;
+	vector<int> text_index;
+	string word_check;
+	vector<int> search_1;
+	void print_index(vector<string> text_name);
+	void search_keyword(string keyword, vector<string> text_name, vector<string> documents);
+	InvertedIndex(string name_) {
+		name = name_;
+	}
+};
+
+void InvertedIndex::print_index(vector<string> text_name) {
+	int number_of_table;
+	//cout << "Index_name: " << name << endl;
+	for (int i = 0; i < nameOfMaps.size(); i++) {
+		if (name == nameOfMaps[i]) {
+			number_of_table = i;
+		}
+	}
+	//cout << "Number of table: " << number_of_table << endl;
+	for (auto it = vectorOfMaps[number_of_table].begin(); it != vectorOfMaps[number_of_table].end(); ++it) {
+		if (word_check != it->first) {
+			//cout << it->first << " : " << it->second << endl;
+			cout << endl;
+			cout << it->first << ":" << endl;
+		}
+		for (int i = 0; i < word.size(); i++) {
+			if (it->first == word[i] and word_check != it->first) {
+				cout << text_name[text_index[i]] << " -> " << word_index[i] << endl;
+			}
+		}
+		word_check = it->first;
+	}
+}
+void InvertedIndex::search_keyword(string keyword, vector<string> text_name, vector<string> documents) {
+	cout << "keyword: " << keyword << endl;
+	for (int i = 0; i < word.size(); i++) {
+		if (keyword == word[i]) {
+			//cout << "word: " << word[i] << endl;
+			//cout << "word_index: " << word_index[i] << endl;
+			//cout << "text_index: " << text_index[i] << endl;
+			search_1.push_back(text_index[i]);
+		}
+	}
+	if (search_1.size() == 0) {
+		cout << "\"" << keyword << "\" is not found in " << name << endl;
+	}
+	else {
+		for (int i = 0; i < search_1.size() - 1; i++) {
+			if (search_1[i] == search_1[i + 1]) {
+				search_1.erase(search_1.begin() + i);
+				i--;
+			}
+		}
+		for (int i = 0; i < search_1.size(); i++) {
+			cout << documents[search_1[i]] << endl;
+		}
+		search_1.clear();
+	}
+}
+
 struct Collection {
 	string name;
 	vector<string> documents;
-	//vector<string> nameOfDocuments;
+	vector<string> nameOfDocuments;
 	string getName();
 	//vector<string> words1;
 	//vector<string> words2;
@@ -230,10 +298,10 @@ struct Collection {
 	//string** documents_collection = new string * [rows];
 	//vector<vector<string>> wordsM;
 	void insertDocument(string txt);
-	//void id_document(char name[40]);
-	void readDocuments();
+	void id_document(string name);
+	void search_all();
 	//void read_id_document();
-	//void makeWords();
+	void wordsForInvertedIndex(InvertedIndex& index, int txt_place, int counter_);
 	//void readWords();
 	Collection(string name_) {
 		name = name_;
@@ -245,13 +313,78 @@ string Collection::getName() {
 void Collection::insertDocument(string txt) {
 	documents.push_back(txt);
 }
-void Collection::readDocuments() {
+void Collection::id_document(string name) {
+	nameOfDocuments.push_back(name);
+}
+void Collection::search_all() {
 	for (int i = 0; i < documents.size(); i++) {
 		//cout << nameOfDocuments[i] << ": " << endl;
 		cout << documents[i];
 		cout << endl;
 		//cout << "NEXT:" << endl;
 	}
+}
+void Collection::wordsForInvertedIndex(InvertedIndex& index, int txt_place, int counter_) {
+	string newWord;
+	int start;
+	int space_place;
+	int countSymbols;
+	int count;
+	int wordIndex;
+	int textIndex;
+	int vect_index;
+
+	start = 0;
+	space_place = 0;
+	countSymbols = 0;
+	count = 0;
+	wordIndex = 0;
+	//cout << "vector: " << vectorOfMaps.size() << endl;
+	if ((vectorOfMaps.size()) <= counter_) {
+		while (space_place <= documents[txt_place].length() - 1) {
+			space_place = documents[txt_place].find(" ", start);
+			countSymbols = space_place - count;
+			newWord.assign(documents[txt_place], start, countSymbols);
+			//cout << "newWord: " << newWord << endl;
+			mapOfWords.insert(pair<string, int>(newWord, wordIndex));
+			index.word.push_back(newWord);
+			index.text_index.push_back(txt_place);
+			index.word_index.push_back(wordIndex);
+			start = space_place;
+			start++;
+			count = count + countSymbols + 1;
+			wordIndex++;
+		}
+		vectorOfMaps.push_back(mapOfWords);
+		//cout << "Collection_name: " << name << endl;
+		nameOfMaps.push_back(name);
+		for (auto it = mapOfWords.begin(); it != mapOfWords.end();) {
+			it = mapOfWords.erase(it);
+		}
+	}
+	else {
+		for (int i = 0; i < nameOfMaps.size(); i++) {
+			if (name == nameOfMaps[i]) {
+				vect_index = i;
+			}
+		}
+		while (space_place <= documents[txt_place].length() - 1) {
+			space_place = documents[txt_place].find(" ", start);
+			countSymbols = space_place - count;
+			newWord.assign(documents[txt_place], start, countSymbols);
+			vectorOfMaps[vect_index].insert(pair<string, int>(newWord, wordIndex));
+			index.word.push_back(newWord);
+			index.text_index.push_back(txt_place);
+			index.word_index.push_back(wordIndex);
+			start = space_place;
+			start++;
+			count = count + countSymbols + 1;
+			wordIndex++;
+		}
+	}
+	/*for (auto it = vectorOfMaps[number_of_table].begin(); it != vectorOfMaps[number_of_table].end(); ++it) {
+		cout << it->first << " : " << it->second << endl;
+	}*/
 }
 
 string inputf(ifstream& f, string str) {
@@ -294,9 +427,12 @@ int main() {
 	Token token;
 	int count_create = 0;
 	int count_break = 0;
+	vector<InvertedIndex> indexTable;
+	//InvertedIndex indexTable;
 
 	while (true) {
 		getline(cin, enter_command, '\n');
+		//!!!!!!remove extra spaces!!!!!!!!!!!!
 		command = command + enter_command + "\n";
 		cout << "Listing of all commands: " << command << endl;
 		if (enter_command[0] == '\n') {
@@ -315,7 +451,7 @@ int main() {
 					break;
 				}
 				//////////////////////
-				if (token.type == TOKEN_ID) { //insert NAME "value" and create NAME
+				if (token.type == TOKEN_ID) { //insert NAME "value" or create NAME or print_index NAME or search NAME
 					//cout << "TOKEN_ID" << endl;
 					tokenForList = to_string(token.type) + " " + token.value + " " + to_string(token.position);
 					tokenList.push_back(tokenForList);
@@ -334,6 +470,7 @@ int main() {
 								namesOfCollection.push_back(name_id);
 								collections.push_back(namesOfCollection[counter]);
 								cout << "Collection " << collections[counter].getName() << " has been created!" << endl;
+								indexTable.push_back(namesOfCollection[counter]);
 								counter++;
 							}
 							else { //для випадку create name "value" (ERROR)
@@ -348,22 +485,28 @@ int main() {
 								break;
 							}
 						}
-						if ((((tokenList[count_create])[0] - '0') == TOKEN_INDEX) and (((tokenList[count_create + 1])[0] - '0') == TOKEN_ID)) {
+						if ((((tokenList[count_create])[0] - '0') == TOKEN_INDEX) and (((tokenList[count_create + 1])[0] - '0') == TOKEN_ID)) { //print_index NAME ... (true/ERROR)
 							check_table = false;
 							start = enter_command.find(" ") + 1;
 							countSymbols = enter_command.find(";", start) - start;
 							name_id.assign(enter_command, start, countSymbols);
 							for (int i = 0; i < counter; i++) {
-								if (collections[i].getName() == name_id) {
+								if (collections[i].getName() == name_id) { //якщо таблиця з назвою NAME існує (true)
 									cout << "Table " << collections[i].getName() << " exists!" << endl;
 									check_table = true;
 									number_of_table = i;
 								}
 							}
 							if (check_table == true) {
-								cout << "Sorry, we don't have an index table yet" << endl;
+								if (collections[number_of_table].documents.size() == 0) {
+									cout << "Table " << collections[number_of_table].getName() << " is empty!" << endl;
+								}
+								else {
+									cout << "Inverted index for " << collections[number_of_table].getName() << ": " << endl;
+									indexTable[number_of_table].print_index(collections[number_of_table].nameOfDocuments);
+								}
 							}
-							else {
+							else { //якщо таблиця з назвою NAME не існує (ERROR)
 								cout << "ERROR: There is no table with this name!!" << endl;
 								start = tokenList[count_create].find(" ", 2) + 1;
 								countSymbols = tokenList[count_create].length() - start;
@@ -374,9 +517,64 @@ int main() {
 								break;
 							}
 						}
+						if ((((tokenList[count_create])[0] - '0') == TOKEN_SEARCH) and (((tokenList[count_create + 1])[0] - '0') == TOKEN_ID)) {
+							check_table = false;
+							start = enter_command.find(" ") + 1;
+							//cout << "start: " << start << endl;
+							if (enter_command.find(" ", start) == -1) { //для випадку search NAME
+								countSymbols = enter_command.find(";", start) - start;
+								name_id.assign(enter_command, start, countSymbols);
+								for (int i = 0; i < counter; i++) {
+									if (collections[i].getName() == name_id) { //якщо таблиця з назвою NAME існує (true)
+										cout << "Table " << collections[i].getName() << " exists!" << endl;
+										check_table = true;
+										number_of_table = i;
+									}
+								}
+								if (check_table == true) {
+									if (collections[number_of_table].documents.size() == 0) {
+										cout << "Table " << collections[number_of_table].getName() << " is empty!" << endl;
+									}
+									else {
+										collections[number_of_table].search_all();
+									}
+								}
+								else { //якщо таблиця з назвою NAME не існує (ERROR)
+									cout << "ERROR: There is no table with this name!!" << endl;
+									start = tokenList[count_create].find(" ", 2) + 1;
+									countSymbols = tokenList[count_create].length() - start;
+									place_to_del.assign(tokenList[count_create], start, countSymbols);
+									lexer.deleteWord(stoi(place_to_del));
+									tokenList.erase(tokenList.begin() + (tokenList.size() - 1));
+									tokenList.erase(tokenList.begin() + (tokenList.size() - 1));
+									break;
+								}
+							}
+							else { //для випадку search NAME ...
+								countSymbols = enter_command.find(" ", start) - start;
+								name_id.assign(enter_command, start, countSymbols);
+								for (int i = 0; i < counter; i++) {
+									if (collections[i].getName() == name_id) { //якщо таблиця з назвою NAME існує (true)
+										cout << "Table " << collections[i].getName() << " exists!" << endl;
+										check_table = true;
+										number_of_table = i;
+									}
+								}
+								if (check_table == false) {
+									cout << "ERROR: There is no table with this name!!" << endl;
+									start = tokenList[count_create].find(" ", 2) + 1;
+									countSymbols = tokenList[count_create].length() - start;
+									place_to_del.assign(tokenList[count_create], start, countSymbols);
+									lexer.deleteWord(stoi(place_to_del));
+									tokenList.erase(tokenList.begin() + (tokenList.size() - 1));
+									tokenList.erase(tokenList.begin() + (tokenList.size() - 1));
+									break;
+								}
+							}
+						}
 					}
 				}
-				else if (token.type == TOKEN_STRING and count_break == 0) { //insert name "VALUE"
+				else if (token.type == TOKEN_STRING and count_break == 0) { //insert name "VALUE" or search name where "CONDITION"
 					//cout << "TOKEN_STRING" << endl;
 					tokenForList = to_string(token.type) + " " + token.value + " " + to_string(token.position);
 					tokenList.push_back(tokenForList);
@@ -384,7 +582,7 @@ int main() {
 					for (count_create; count_create < tokenList.size() - 1; count_create++) {
 						//cout << "STRINGS: count_create: " << count_create << endl;
 						//cout << "STRINGS: tokenList[count_create]: " << tokenList[count_create] << endl;
-						if ((((tokenList[count_create])[0] - '0') != TOKEN_ID)) { //для випадку create "name" (ERROR)
+						if ((((tokenList[count_create])[0] - '0') == TOKEN_CREATE /* != TOKEN_ID*/)) { //для випадку create "name" (ERROR)
 							break;
 						}
 						if ((((tokenList[count_create - 1])[0] - '0') == TOKEN_INSERT) and (((tokenList[count_create])[0] - '0') == TOKEN_ID) and (((tokenList[count_create + 1])[0] - '0') == TOKEN_STRING)) { //insert name "VALUE" (true or ERROR)
@@ -407,8 +605,13 @@ int main() {
 								//cout << "Txt: " << txt << endl;
 								collections[number_of_table].insertDocument(txt);
 								cout << "Document has been added to " << collections[number_of_table].getName() << endl;
+								collections[number_of_table].id_document(name_id);
 
-								collections[number_of_table].readDocuments();
+								//collections[number_of_table].readDocuments();
+
+								//////new (30.10.21)//////
+								//cout << "table #" << number_of_table << endl;
+								collections[number_of_table].wordsForInvertedIndex(indexTable[number_of_table], collections[number_of_table].documents.size()-1, counter-1);
 							}
 							else { //якщо таблиця з назвою NAME не існує (ERROR)
 								cout << "ERROR: There is no table with this name!!" << endl;
@@ -422,11 +625,30 @@ int main() {
 								break;
 							}
 						}
+						else if ((((tokenList[count_create - 2])[0] - '0') == TOKEN_SEARCH) and (((tokenList[count_create - 1])[0] - '0') == TOKEN_ID) and (((tokenList[count_create])[0] - '0') == TOKEN_WHERE) and (((tokenList[count_create + 1])[0] - '0') == TOKEN_STRING)) {
+							//cout << "search where" << endl;
+							start = tokenList[count_create + 1].find(" ") + 1;
+							countSymbols = tokenList[count_create + 1].find(" ", start) - start;
+							name_id.assign(tokenList[count_create + 1], start, countSymbols);
+							//cout << "table #" << number_of_table << endl;
+							if (collections[number_of_table].documents.size() == 0) {
+								cout << "Table " << collections[number_of_table].getName() << " is empty!" << endl;
+							}
+							else {
+								indexTable[number_of_table].search_keyword(name_id, collections[number_of_table].nameOfDocuments, collections[number_of_table].documents);
+							}
+						}
 					}
 				}
 				/*else if (token.type == TOKEN_INDEX) {
 					cout << "TOKEN_INDEX" << endl;
 				}*/
+				else if (token.type == TOKEN_WHERE) {
+					tokenForList = to_string(token.type) + " " + token.value + " " + to_string(token.position);
+					tokenList.push_back(tokenForList);
+					cout << "Token(" << token.type << ", " << token.value << ", " << token.position << ")" << endl;
+					count_create++;
+				}
 				else { //для ";", create
 					//cout << "TOKEN_..." << endl;
 					tokenForList = to_string(token.type) + " " + token.value + " " + to_string(token.position);
