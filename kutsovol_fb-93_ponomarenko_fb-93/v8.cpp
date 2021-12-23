@@ -3,6 +3,7 @@
 #include <vector>
 #include <regex>
 #include <map>
+#include <iterator>
 #include <fstream>
 
 using namespace std;
@@ -260,6 +261,7 @@ struct InvertedIndex {
 	vector<int> search_1, search_2, search_3;
 	int number_of_table;
 	multimap<string, int> mapOfWords;//мапа зі слів та відповідного індексу в тексті(тому і мультімапа, адже в одному тексті одне й те ж саме слово може зустрічатися декілька разів, а отже і мати декілька індексів)
+	multimap<string, int>mapOfTexts;
 	void print_index(vector<string> text_name);
 	void search_keyword(string keyword, vector<string> text_name, vector<string> documents);
 	void search_prefix(string keyword, vector<string> text_name, vector<string> documents);
@@ -276,9 +278,11 @@ void InvertedIndex::print_index(vector<string> text_name) {
 			cout << endl;
 			cout << it->first << ":" << endl;
 		}
-		for (int i = 0; i < word_value.size(); i++) {//рухаємося по всім словам усіх текстів нашої таблиці
-			if (it->first == word_value[i] and word_check != it->first) {
-				cout << text_name[text_index[i]] << " -> " << word_index[i] << endl;//виводимо назву текста, в якому дане слово є, та місце слова у цьому тексті
+		if (word_check != it->first) {
+			for (int i = 0; i < word_value.size(); i++) {//рухаємося по всім словам усіх текстів нашої таблиці
+				if (it->first == word_value[i]) {
+					cout << text_name[text_index[i]] << " -> " << word_index[i] << endl;//виводимо назву текста, в якому дане слово є, та місце слова у цьому тексті
+				}
 			}
 		}
 		word_check = it->first;
@@ -286,7 +290,29 @@ void InvertedIndex::print_index(vector<string> text_name) {
 }
 void InvertedIndex::search_keyword(string keyword, vector<string> text_name, vector<string> documents) {
 	transform(keyword.begin(), keyword.end(), keyword.begin(), ::tolower);
-	for (int i = 0; i < word_value.size(); i++) {
+	typedef multimap<string, int> ::iterator iter;
+	pair<iter, iter> result = mapOfTexts.equal_range(keyword);
+	for (iter it = result.first; it != result.second; it++) {
+		//cout << "Place: " << it->second << endl;
+		search_1.push_back(it->second);
+	}
+	if (search_1.size() == 0) {
+		cout << "\"" << keyword << "\" is not found in " << name << endl;
+	}
+	else {
+		for (int i = 0; i < search_1.size() - 1; i++) {
+			if (search_1[i] == search_1[i + 1]) {
+				search_1.erase(search_1.begin() + i);
+				i--;
+			}
+		}
+		for (int i = 0; i < search_1.size(); i++) {
+			cout << documents[search_1[i]] << endl;
+		}
+		search_1.clear();
+	}
+	
+	/*for (int i = 0; i < word_value.size(); i++) {
 		if (keyword == word_value[i]) {
 			//cout << "word: " << word_value[i] << endl;
 			//cout << "word_index: " << word_index[i] << endl;
@@ -308,11 +334,32 @@ void InvertedIndex::search_keyword(string keyword, vector<string> text_name, vec
 			cout << documents[search_1[i]] << endl;
 		}
 		search_1.clear();
-	}
+	}*/
 }
 void InvertedIndex::search_prefix(string keyword, vector<string> text_name, vector<string> documents) {
 	transform(keyword.begin(), keyword.end(), keyword.begin(), ::tolower);
-	for (int i = 0; i < word_value.size(); i++) {
+	for (auto it = mapOfTexts.begin(); it != mapOfTexts.end(); ++it) {
+		if (it->first.find(keyword) == 0) {
+			search_2.push_back(it->second);
+		}
+	}
+	if (search_2.size() == 0) {
+		cout << "Word that has prefix \"" << keyword << "\" is not found in " << name << endl;
+	}
+	else {
+		for (int i = 0; i < search_2.size() - 1; i++) {
+			if (search_2[i] == search_2[i + 1]) {
+				search_2.erase(search_2.begin() + i);
+				i--;
+			}
+		}
+		for (int i = 0; i < search_2.size(); i++) {
+			cout << documents[search_2[i]] << endl;
+		}
+		search_2.clear();
+	}
+
+	/*for (int i = 0; i < word_value.size(); i++) {
 		if (word_value[i].find(keyword) == 0) {
 			//cout << "word: " << word_value[i] << endl;
 			//cout << "word_index: " << word_index[i] << endl;
@@ -334,12 +381,51 @@ void InvertedIndex::search_prefix(string keyword, vector<string> text_name, vect
 			cout << documents[search_2[i]] << endl;
 		}
 		search_2.clear();
-	}
+	}*/
 }
 void InvertedIndex::search_two_key(string key1, string key2, int n, vector<string> text_name, vector<string> documents) {
 	transform(key1.begin(), key1.end(), key1.begin(), ::tolower);
 	transform(key2.begin(), key2.end(), key2.begin(), ::tolower);
-	for (int i = 0; i < word_value.size(); i++) {
+
+	typedef multimap<string, int> ::iterator iterT1, iterT2, iter1, iter2;
+	pair<iterT1, iterT1> resultT1 = mapOfTexts.equal_range(key1);
+	pair<iterT2, iterT2> resultT2 = mapOfTexts.equal_range(key2);
+	pair<iter1, iter1> result1 = mapOfWords.equal_range(key1);
+	pair<iter2, iter2> result2 = mapOfWords.equal_range(key2);
+
+	iterT1 itT1 = resultT1.first;
+	iterT2 itT2 = resultT2.first;
+	for (iter1 it1 = result1.first; it1 != result1.second; it1++) {
+		for (iter2 it2 = result2.first; it2 != result2.second; it2++) {
+			if (mapOfWords.size() > (it1->second) + n) {
+				if ((it1->second) + n == it2->second and itT1->second == itT2->second) {
+					//cout << key1 << ": " << it1->second << " Text#" << itT1->second << endl;
+					search_3.push_back(itT1->second);
+				}
+				if ((it2->second) + n == it1->second and itT2->second == itT1->second) {
+					//cout << key1 << ": " << it2->second << " Text#" << itT2->second << endl;
+					search_3.push_back(itT2->second);
+				}
+			}
+		}
+	}
+	if (search_3.size() == 0) {
+		cout << "Search query \"" << key1 << "\"<" << n << ">\"" << key2 << "\" is not found in " << name << endl;
+	}
+	else {
+		for (int i = 0; i < search_3.size() - 1; i++) {
+			if (search_3[i] == search_3[i + 1]) {
+				search_3.erase(search_3.begin() + i);
+				i--;
+			}
+		}
+		for (int i = 0; i < search_3.size(); i++) {
+			cout << documents[search_3[i]] << endl;
+		}
+		search_3.clear();
+	}
+
+	/*for (int i = 0; i < word_value.size(); i++) {
 		if (word_value[i] == key1) {
 			if (word_value.size() > i + n) {
 				if (word_value[i + n] == key2 and text_index[i] == text_index[i + n]) {
@@ -377,7 +463,7 @@ void InvertedIndex::search_two_key(string key1, string key2, int n, vector<strin
 			cout << documents[search_3[i]] << endl;
 		}
 		search_3.clear();
-	}
+	}*/
 }
 
 struct Collection {
@@ -424,6 +510,7 @@ void Collection::wordsForInvertedIndex(InvertedIndex& index, int txt_place) {
 			newWord.assign(documents[txt_place], start, countSymbols);
 		}
 		index.mapOfWords.insert(pair<string, int>(newWord, wordIndex));
+		index.mapOfTexts.insert(pair<string, int>(newWord, txt_place));
 		index.word_value.push_back(newWord);
 		index.text_index.push_back(txt_place);
 		index.word_index.push_back(wordIndex);
